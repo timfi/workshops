@@ -13,6 +13,8 @@ There are many situations where you need multiple versions of python installed o
 
 > _tl;dr_ use tools like `pyenv` or install python through “well behaved” package managers...
 
+<!-- ![TODO] rework this chapter… -->
+
 ### Installing `pyenv`
 
 _UNIX (& WSL)_ [^pyenv]
@@ -127,8 +129,8 @@ The `pyproject.toml` file will only be sparsely populated with information, as s
 [tool.poetry]
 name = "my-project"
 version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
+description = ""                          🠠
+authors = ["Your Name <you@example.com>"] 🠠
 readme = "README.md"
 packages = [{include = "my_project"}]
 
@@ -202,7 +204,7 @@ Another important tool for large code bases is a type checker. This may seem cou
 
 ### Installing `pyright`
 
-To keep things simple we will opt to use `pyright` for this workshop as it is already integrated into the `Python`[^vscode-python] extension for VS Code. Tough it can also be used with other editors[^pyright-integration]. If you are using PyCharm it also already contains a proprietary type checker. 😉
+To keep things simple we will opt to use `pyright` for this workshop as it is already integrated into the `Python`[^vscode-python] extension for VS Code. Tough it can also be used with other editors[^pyright-integration]. If you are using PyCharm it also already contains a proprietary type checker[^pycharm-typehints]. 😉
 
 ### Using type annotations
 
@@ -216,7 +218,7 @@ def my_sum(numbers):
     return result
 ```
 
-If you call it via `my_sum([1,2,3,4])` its no problem. But what happens if you do the following `my_sum(1,2,3)`? You get a `TypeError: 'NoneType' object is not iterable` at runtime! These kinds of errors happen regularly in complicated and/or large code bases — simply because you loose sight of the big picture. In such situations its nice to be notified by you linter/editor that this could can/will go awry at runtime. To be able to give such advice we need to fill in some information that the type checker can guess — or rather infer — on its own.
+If you call it via `my_sum([1,2,3,4])` its no problem. But what happens if you do the following `my_sum(1,2,3)`? You get a `TypeError: 'NoneType' object is not iterable` at runtime! These kinds of errors happen regularly in complicated and/or large code bases — simply because you loose sight of the big picture. In such situations its nice to be notified by your linter/editor that this can/will go awry at runtime. To be able to give such advice we need to fill in only a minimal amount of type information such that the type checker can infer the remainder on its own.
 
 ```python
 def my_sum(numbers: list[float]) -> float:
@@ -229,19 +231,17 @@ def my_sum(numbers: list[float]) -> float:
 These type annotations and checkers thereof also enable standard modules like `dataclasses`[^dataclasses] to show their full potential. The following the `class` definitions are effectively™ identical™ but the one using the `@dataclass` decorator is actually type safe!
 
 ```python
-class BoringVec2:
-    def __init__(self, x, y, z):
+class BoringVec:
+    def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.z = z
 
 from dataclasses import dataclass
 
 @dataclass
-class Vec2:
+class Vec:
     x: float
     y: float
-    z: float
 ```
 
 To express more complicated types in a succinct manner Python's standard library has the `typing` module[^typing]. With the typing module we can also properly annotate polymorphic functions!
@@ -260,12 +260,104 @@ def my_sum(numbers: list[T]) -> T:
 
 When using older Python versions you can backport some of the advancements of the `typing` module by installing the `typing_extension` package[^typing_extension]. This package also usually contains proxies for newer typing features that are still in beta and type checkers also usually support these.
 
-## How do I publish my code?
+## How do I build/publish my project?
 
-<!-- ![TODO] package building via `poetry build` -->
-<!-- ![TODO] package publishing via `poetry publish` -->
-<!-- ![TODO] package building + publishing via `poetry publish --build` -->
-<!-- ![TODO] skip existing versions via `poetry publish --skip-existing` -->
+Once you are ready to publish your project there are a few ways to go about it. On the simple side of things you can publish the code on GitHub and be done with it — as we have seen before this can already be sufficient for allowing others to install and use your project. Another method is publishing your project on PyPI, during which it is good practice to publish your code a publically accessible version control server like GitHub anyways.
+
+In general publishing your code consists of two steps: building and uploading. We will take a look at the basics of both.
+### Building your project
+
+To build your project you can simply run:
+
+```bash
+poetry build
+```
+
+This builds all the usual distributable package files and places them in a new directory called `dist`.
+
+```none
+├── README.md
+├── dist/
+│   ├── my-project-0.1.0.tar.gz            🠠
+│   └── my_project-0.1.0-py3-none-any.whl  🠠
+├── my_project/
+├── poetry.lock
+├── pyproject.toml
+└── tests/
+```
+
+If you want to make your fellow developers lives a lot easier and supply them with a properly type checked package there is still one more thing we need to do: we need to mark are package as one that supports types. To do so we will need to add a file called `py.typed` to the project source.
+
+```none
+├── README.md
+├── dist/
+├── my_project/
+│   ├── __init__.py
+│   └── py.typed    🠠
+├── poetry.lock
+├── pyproject.toml
+└── tests/
+```
+
+Afterwards we need to inform `poetry` that this file should be included in the distributable builds as well by listing it as an additional file to include in your `pyproject.toml`.
+
+```toml
+[tool.poetry]
+...
+include = ["py.typed"]
+...
+```
+
+Another common thing your project might include is some sort of script/application that user should be able to access through the shell without having to explicitly execute one your projects files. Such a behavior can be achieved through the addition of what is known as “entry points” or “scripts” — as `poetry` calls them — to your `pyproject.toml`.
+
+```toml
+...
+[tool.poetry.scripts]
+my_package_cli = 'my_package.main:run'
+```
+
+Notice the `'my_package.main:run'` part, this string consists of a module path — i.e., `my_package.main` — which is the path to a module/file in your project and a then name of a function — i.e., `main` — contained in said file. If a user installs your package they will have access to said function by calling `my_package_cli` in their shell.
+
+### Uploading your project to PyPI
+
+If you want to upload your project to PyPI you can use the following command:
+
+```bash
+poetry publish
+```
+
+But for this you will need to have a distributable version of your package on hand — i.e., you need to run `poetry build` first. As building and uploading usually go hand in hand `poetry publish` also supports building through the `--build` flag.
+
+```bash
+poetry publish --build
+```
+
+Notice that uploading to PyPI requires some credentials, for this you will need to make yourself an account on PyPI[^pypi-register]. If you just want to run this command without it actually uploading your builds to PyPI you can do so through the `--dry-run` flag.
+
+There can be situations in which you will be greeted with a message ominously stating `File exists`. This happens when you upload builds for versions that already exist on PyPI. **Each new upload requires a new version number!** If these are old versions and these messages annoy you can add the `--skip-existing` to disable the messages.
+
+### Package Metadata
+
+Aside from a title, a description, a readme, and an author you can and should add more metadata to your package. There are many that are quite usefull to anyone looking for or into the library itself. The most important of those is of course the license[^which-license][^choose-a-license] under which you publish your code! On a similar level of importance is also a link to a projects home page, its source code repository and/or it official documentation if any of those exist.
+
+```toml
+[tool.poetry]
+...
+license = "MIT"
+homepage = "https://my-project.com"
+repository = "https://github.com/me/my-project"
+documentation = "https://my-project.readthedocs.com"
+...
+```
+
+Notice that for the license you should go another step further by including the full license text in all distribution builds. To do so just create a top-level file called `LICENSE` in project, fill it with the appropriate license text, and add a new entry to the `packages` field — as done for `py.typed` before.
+
+```toml
+[tool.poetry]
+...
+include = ["py.typed","LICENSE"]
+...
+```
 
 <!-- Footnotes: -->
 [^pyenv]: https://github.com/pyenv/pyenv
@@ -283,6 +375,10 @@ When using older Python versions you can backport some of the advancements of th
 [^pyright]: https://github.com/microsoft/pyright
 [^vscode-python]: https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance
 [^pyright-integration]: https://github.com/microsoft/pyright#installation
+[^pycharm-typehints]: https://www.jetbrains.com/help/pycharm/type-hinting-in-product.html
 [^dataclasses]: https://docs.python.org/3/library/dataclasses.html
 [^typing]: https://docs.python.org/3/library/typing.html
 [^typing_extension]: https://github.com/python/typing_extensions
+[^pypi-register]: https://pypi.org/account/register/
+[^which-license]: https://opensource.org/licenses
+[^choose-a-license]: https://choosealicense.com/
